@@ -1,0 +1,8 @@
+# Pod Security Admission "restricted" : Kubernetes refuse tout pod root / privilégié.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: biblio
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted

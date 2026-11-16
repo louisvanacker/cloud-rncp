@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: biblio-config
+data:
+  STORAGE_DRIVER: azure
+  AZURE_STORAGE_ACCOUNT_URL: STORAGE_ACCOUNT_URL
+  S3_ENDPOINT: ""

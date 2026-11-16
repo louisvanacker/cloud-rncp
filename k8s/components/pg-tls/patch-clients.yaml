@@ -1,0 +1,11 @@
+# Les clients ne reçoivent que le certificat de la CA (pas la clé) pour vérifier le serveur.
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: pg-ca
+    secret:
+      secretName: postgres-tls
+      items: [{ key: ca.crt, path: ca.crt }]
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value: { name: pg-ca, mountPath: /etc/pg-ca, readOnly: true }

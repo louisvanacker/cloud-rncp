@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels: { app: backend }
+spec:
+  selector: { app: backend, track: stable }
+  ports:
+    - { name: http, port: 3000, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels: { app: backend }
+spec:
+  # Pas de 'replicas' : c'est l'HPA qui pilote le nombre de pods (sinon chaque apply le réinitialise)
+  revisionHistoryLimit: 5
+  # Rolling update sans interruption : on ajoute un pod avant d'en retirer un.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: backend }
+  template:
+    metadata:
+      labels: { app: backend, track: stable }
+    spec:
+      serviceAccountName: backend
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      # Répartit les réplicas sur des nœuds différents quand c'est possible
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: backend }
+      initContainers:
+        - name: migrate
+          image: biblio-backend
+          command: ["node", "src/migrate.js"]
+          envFrom:
+            - configMapRef: { name: biblio-config }
+          env:
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: biblio-secrets, key: DB_PASSWORD } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: biblio-secrets, key: REDIS_PASSWORD } }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: biblio-secrets, key: JWT_SECRET } }
+            - name: SEED_ADMIN_EMAIL
+              valueFrom: { secretKeyRef: { name: biblio-secrets, key: SEED_ADMIN_EMAIL, optional: true } }
+            - name: SEED_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: biblio-secrets, key: SEED_ADMIN_PASSWORD, optional: true } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+      containers:
+        - name: backend
+          image: biblio-backend
+          ports:
+            - { name: http, containerPort: 3000 }
+          envFrom:
+            - configMapRef: { name: biblio-config }
+          env:
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: biblio-secrets, key: DB_PASSWORD } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: biblio-secrets, key: REDIS_PASSWORD } }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: biblio-secrets, key: JWT_SECRET } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+            failureThreshold: 2
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 64Mi }
+---
+# Autoscaling horizontal : possible car l'API est stateless (JWT, aucun état local).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: backend }
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies: [{ type: Pods, value: 2, periodSeconds: 30 }]
+    scaleDown:
+      stabilizationWindowSeconds: 120
+      policies: [{ type: Pods, value: 1, periodSeconds: 60 }]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: backend }

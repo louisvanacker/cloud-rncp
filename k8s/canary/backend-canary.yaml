@@ -1,0 +1,89 @@
+# Déploiement CANARY du backend (optionnel, "idéalement" dans le sujet) :
+# une nouvelle version reçoit X % du trafic /api grâce aux annotations canary de l'Ingress NGINX
+# (contrôleur App Routing d'AKS). Piloté par scripts/canary.sh :
+#   ./scripts/canary.sh start <tag-image> 10   -> 10 % du trafic sur la nouvelle version
+#   ./scripts/canary.sh promote <tag-image>    -> la version devient "stable" (rolling update)
+#   ./scripts/canary.sh abort                  -> suppression du canary
+# Les valeurs __IMAGE__, __HOST__ et __WEIGHT__ sont remplacées par le script.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-canary
+  labels: { app: backend, track: canary }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: backend, track: canary }
+  template:
+    metadata:
+      labels: { app: backend, track: canary, azure.workload.identity/use: "true" }
+    spec:
+      serviceAccountName: backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: backend
+          image: __IMAGE__
+          ports:
+            - { name: http, containerPort: 3000 }
+          envFrom:
+            - configMapRef: { name: biblio-config }
+          env:
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: biblio-secrets, key: DB_PASSWORD } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: biblio-secrets, key: REDIS_PASSWORD } }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: biblio-secrets, key: JWT_SECRET } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: pg-ca, mountPath: /etc/pg-ca, readOnly: true }
+      volumes:
+        - { name: tmp, emptyDir: {} }
+        - name: pg-ca
+          secret:
+            secretName: postgres-tls
+            items: [{ key: ca.crt, path: ca.crt }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-canary
+  labels: { app: backend, track: canary }
+spec:
+  selector: { app: backend, track: canary }
+  ports:
+    - { name: http, port: 3000, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: biblio-canary
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "__WEIGHT__"
+spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
+  rules:
+    - host: __HOST__
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: backend-canary, port: { name: http } }

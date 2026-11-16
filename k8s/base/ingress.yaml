@@ -1,0 +1,29 @@
+# Point d'entrée HTTPS unique. /api -> backend, le reste -> frontend.
+# /metrics, /healthz et /readyz du backend ne sont PAS exposés.
+# L'hôte, la classe d'Ingress et l'émetteur TLS sont surchargés par overlay.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: biblio
+  annotations:
+    cert-manager.io/issuer: letsencrypt
+    nginx.ingress.kubernetes.io/proxy-body-size: 6m
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
+  tls:
+    - hosts: [biblio.example.com]
+      secretName: biblio-tls
+  rules:
+    - host: biblio.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: backend, port: { name: http } }
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: frontend, port: { name: http } }

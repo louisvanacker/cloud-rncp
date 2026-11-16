@@ -1,0 +1,9 @@
+# Prod : 2 workers minimum, au moins 1 toujours disponible pendant un drain de nœud
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: worker
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: worker }

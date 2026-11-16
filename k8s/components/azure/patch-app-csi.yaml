@@ -1,0 +1,16 @@
+# Monte le volume CSI Key Vault (ce montage déclenche la synchro du Secret biblio-secrets)
+# et active Workload Identity pour les SDK Azure (accès Blob sans clé).
+- op: add
+  path: /spec/template/metadata/labels/azure.workload.identity~1use
+  value: "true"
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: kv
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes: { secretProviderClass: biblio-kv-app }
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value: { name: kv, mountPath: /mnt/secrets, readOnly: true }

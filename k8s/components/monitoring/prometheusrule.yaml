@@ -1,0 +1,117 @@
+# SLO (voir docs/SLO.md) :
+#  - Disponibilité API : 99,5 % des requêtes sans erreur 5xx sur 30 jours (budget d'erreur = 0,5 %)
+#  - Latence API      : 95 % des requêtes en moins de 300 ms
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: biblio
+spec:
+  groups:
+    - name: biblio.sli
+      interval: 30s
+      rules:
+        # Taux d'erreur (SLI disponibilité inversé) sur plusieurs fenêtres pour le burn rate
+        - record: biblio:api_error_ratio:rate5m
+          expr: |
+            sum by (namespace) (rate(http_requests_total{app="biblio-backend",status=~"5.."}[5m]))
+            / clamp_min(sum by (namespace) (rate(http_requests_total{app="biblio-backend"}[5m])), 1e-9)
+        - record: biblio:api_error_ratio:rate30m
+          expr: |
+            sum by (namespace) (rate(http_requests_total{app="biblio-backend",status=~"5.."}[30m]))
+            / clamp_min(sum by (namespace) (rate(http_requests_total{app="biblio-backend"}[30m])), 1e-9)
+        - record: biblio:api_error_ratio:rate1h
+          expr: |
+            sum by (namespace) (rate(http_requests_total{app="biblio-backend",status=~"5.."}[1h]))
+            / clamp_min(sum by (namespace) (rate(http_requests_total{app="biblio-backend"}[1h])), 1e-9)
+        - record: biblio:api_error_ratio:rate6h
+          expr: |
+            sum by (namespace) (rate(http_requests_total{app="biblio-backend",status=~"5.."}[6h]))
+            / clamp_min(sum by (namespace) (rate(http_requests_total{app="biblio-backend"}[6h])), 1e-9)
+        - record: biblio:api_latency_p95:rate5m
+          expr: |
+            histogram_quantile(0.95, sum by (namespace, le) (rate(http_request_duration_seconds_bucket{app="biblio-backend"}[5m])))
+        # Part des requêtes servies en moins de 300 ms (SLI latence)
+        - record: biblio:api_fast_ratio:rate5m
+          expr: |
+            sum by (namespace) (rate(http_request_duration_seconds_bucket{app="biblio-backend",le="0.3"}[5m]))
+            / clamp_min(sum by (namespace) (rate(http_request_duration_seconds_count{app="biblio-backend"}[5m])), 1e-9)
+
+    - name: biblio.alerts
+      rules:
+        # Burn rate multi-fenêtres (méthode Google SRE) : budget de 30 j consommé en ~2 j
+        - alert: BiblioErrorBudgetFastBurn
+          expr: |
+            biblio:api_error_ratio:rate1h > (14.4 * 0.005)
+            and biblio:api_error_ratio:rate5m > (14.4 * 0.005)
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: "SLO disponibilité menacé ({{ $labels.namespace }})"
+            description: "Le budget d'erreur est consommé 14x trop vite (erreurs 5xx : {{ $value | humanizePercentage }})."
+        - alert: BiblioErrorBudgetSlowBurn
+          expr: |
+            biblio:api_error_ratio:rate6h > (6 * 0.005)
+            and biblio:api_error_ratio:rate30m > (6 * 0.005)
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: "Consommation lente mais soutenue du budget d'erreur ({{ $labels.namespace }})"
+        - alert: BiblioApiHighLatency
+          expr: biblio:api_latency_p95:rate5m > 0.3
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Latence p95 de l'API > 300 ms ({{ $labels.namespace }})"
+            description: "p95 actuel : {{ $value | humanizeDuration }}"
+        # kube-state-metrics (et non "up") : fonctionne même quand il ne reste AUCUN pod à scraper
+        - alert: BiblioApiDown
+          expr: max by (namespace) (kube_deployment_status_replicas_available{deployment="backend", namespace=~"biblio-.*"}) == 0
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: "Plus aucun pod backend joignable ({{ $labels.namespace }})"
+        - alert: BiblioWorkerJobsFailing
+          expr: sum by (namespace) (increase(biblio_jobs_processed_total{status="failed"}[15m])) > 5
+          labels: { severity: warning }
+          annotations:
+            summary: "Le worker échoue sur des tâches ({{ $labels.namespace }})"
+        - alert: BiblioQueueBacklog
+          expr: max by (namespace) (biblio_queue_jobs{state="waiting"}) > 50
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "File de messages engorgée ({{ $value }} tâches en attente)"
+        - alert: BiblioBackupFailed
+          expr: sum by (namespace) (kube_job_status_failed{job_name=~"postgres-backup.*"}) > 0
+          labels: { severity: critical }
+          annotations:
+            summary: "La sauvegarde PostgreSQL a échoué ({{ $labels.namespace }})"
+        - alert: BiblioPostgresVolumeAlmostFull
+          expr: |
+            kubelet_volume_stats_available_bytes{persistentvolumeclaim=~"data-postgres-.*"}
+            / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"data-postgres-.*"} < 0.15
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Volume PostgreSQL rempli à plus de 85 %"
+        # Tâche planifiée : si les rappels / relances ne tournent plus, les membres ne sont plus prévenus
+        - alert: BiblioDailyJobNotRunning
+          # max_over_time : la jauge repart à 0 quand le pod worker redémarre, on garde la dernière vraie valeur
+          expr: time() - max by (namespace) (max_over_time(biblio_daily_job_last_success_timestamp_seconds[27h])) > 26 * 3600
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: "La tâche quotidienne (rappels, retards, réservations) n'a pas réussi depuis plus de 26 h ({{ $labels.namespace }})"
+            description: "Vérifier les logs du worker ; relance manuelle : node src/run-now.js daily-loans"
+        - alert: BiblioManyOverdueLoans
+          expr: max by (namespace) (biblio_loans_current{state="overdue"}) > 20
+          for: 1h
+          labels: { severity: info }
+          annotations:
+            summary: "Plus de 20 emprunts en retard ({{ $labels.namespace }}) : indicateur métier pour les bibliothécaires"
+        # Sécurité (ISO 27001 A.8.16) : rafale d'échecs de connexion = tentative de brute force
+        - alert: BiblioLoginBruteForce
+          expr: sum by (namespace) (increase(biblio_login_failures_total[5m])) > 20
+          labels: { severity: warning, category: security }
+          annotations:
+            summary: "Plus de 20 échecs de connexion en 5 minutes ({{ $labels.namespace }})"

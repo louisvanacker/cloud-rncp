@@ -1,0 +1,13 @@
+# Exceptions de scan ACCEPTÉES, avec justification (à reprendre dans le rapport, section sécurité).
+
+# AZU-0041 : API AKS joignable depuis Internet (pas de liste d'IP autorisées).
+# Les runners GitHub Actions ont des IP variables : restreindre casserait le déploiement continu.
+# Compensation : authentification Entra ID obligatoire + Azure RBAC limité au namespace pour la CI.
+# Pour aller plus loin : runner auto-hébergé dans le VNet + authorized_ip_ranges / cluster privé.
+AZU-0041
+
+# AZU-0012 (stockage) et AZU-0013 (Key Vault) : action par défaut "Allow" sur le pare-feu du stockage. Elle passe à "Deny" dès que
+# la variable admin_ip_ranges est renseignée (voir storage.tf et keyvault.tf) ; le scan statique ne voit pas la condition.
+# Dans tous les cas : clés partagées désactivées, accès uniquement par rôle Entra ID, TLS 1.2 minimum.
+AZU-0012
+AZU-0013

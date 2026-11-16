@@ -1,0 +1,158 @@
+# Segmentation réseau "zéro confiance" : tout est interdit, puis on ouvre flux par flux.
+# Nécessite un CNI qui applique les NetworkPolicies (AKS : Cilium, cf. Terraform).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+# Frontend : reçoit le trafic du contrôleur d'Ingress, ne parle qu'au backend.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend
+spec:
+  podSelector:
+    matchLabels: { app: frontend }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: app-routing-system }
+      ports: [{ port: 8080 }]
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: backend } }
+      ports: [{ port: 3000 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend
+spec:
+  podSelector:
+    matchLabels: { app: backend }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: app-routing-system }
+        - podSelector: { matchLabels: { app: frontend } }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring } # scrape Prometheus
+      ports: [{ port: 3000 }]
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: postgres } }
+      ports: [{ port: 5432 }]
+    - to:
+        - podSelector: { matchLabels: { app: redis } }
+      ports: [{ port: 6379 }]
+    - to:
+        - podSelector: { matchLabels: { app: minio } }
+      ports: [{ port: 9000 }]
+    # HTTPS sortant : Azure Blob Storage + Entra ID (jetons Workload Identity)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports: [{ port: 443 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app, operator: In, values: [worker, backup] }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+      ports: [{ port: 9100 }]
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app: postgres } }
+      ports: [{ port: 5432 }]
+    - to:
+        - podSelector: { matchLabels: { app: redis } }
+      ports: [{ port: 6379 }]
+    - to:
+        - podSelector: { matchLabels: { app: mailpit } }
+      ports: [{ port: 1025 }]
+    - to:
+        - podSelector: { matchLabels: { app: minio } }
+      ports: [{ port: 9000 }]
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports: [{ port: 443 }]
+---
+# La base n'accepte que l'API, le worker et le job de sauvegarde. Aucune sortie.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres
+spec:
+  podSelector:
+    matchLabels: { app: postgres }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app, operator: In, values: [backend, worker, backup] }
+      ports: [{ port: 5432 }]
+  egress: []
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis
+spec:
+  podSelector:
+    matchLabels: { app: redis }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app, operator: In, values: [backend, worker] }
+      ports: [{ port: 6379 }]
+  egress: []
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mailpit
+spec:
+  podSelector:
+    matchLabels: { app: mailpit }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: worker } }
+        - namespaceSelector: # Alertmanager envoie les alertes par e-mail (visibles dans Mailpit)
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+      ports: [{ port: 1025 }]
+  egress: []

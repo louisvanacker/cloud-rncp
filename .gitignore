@@ -1,0 +1,22 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+k8s/overlays/standalone/secrets.env
+k8s/overlays/standalone/data-secrets.env
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+!*.tfvars.example
+crash.log
+.DS_Store
+
+# Fichiers personnels (hors dépôt)
+Copie ecran rapport/
+CR *.docx
+Image livre/
+Guide-TP-BC3-Biblio.pdf
+GUIDE.md

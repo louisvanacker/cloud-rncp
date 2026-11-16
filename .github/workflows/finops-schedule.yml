@@ -1,0 +1,47 @@
+# FinOps : arrêt du cluster AKS hors heures de travail (soir + week-end).
+# Un cluster arrêté ne facture plus les VM des nœuds (seuls les disques et l'IP restent facturés).
+# 08:00 -> 19:00 du lundi au vendredi = 55 h / semaine au lieu de 168 h (~67 % d'heures en moins).
+name: finops-aks-schedule
+
+on:
+  schedule:
+    - cron: "0 18 * * 1-5" # 19:00 heure de Paris (hiver) : arrêt
+    - cron: "0 7 * * 1-5"  # 08:00 heure de Paris (hiver) : démarrage
+  workflow_dispatch:
+    inputs:
+      action:
+        description: start ou stop
+        required: true
+        type: choice
+        options: [stop, start]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  aks:
+    runs-on: ubuntu-latest
+    environment: finops
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Démarrer / arrêter
+        run: |
+          ACTION="${{ github.event.inputs.action }}"
+          if [ -z "$ACTION" ]; then
+            [ "${{ github.event.schedule }}" = "0 18 * * 1-5" ] && ACTION=stop || ACTION=start
+          fi
+          STATE=$(az aks show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ vars.AKS_NAME }}" --query powerState.code -o tsv)
+          echo "État actuel : $STATE, action : $ACTION"
+          if [ "$ACTION" = "stop" ] && [ "$STATE" = "Running" ]; then
+            az aks stop -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ vars.AKS_NAME }}" --no-wait
+          elif [ "$ACTION" = "start" ] && [ "$STATE" = "Stopped" ]; then
+            az aks start -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ vars.AKS_NAME }}" --no-wait
+          fi
+          echo "| Date | Action | État avant |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| $(date -u +%FT%TZ) | $ACTION | $STATE |" >> "$GITHUB_STEP_SUMMARY"

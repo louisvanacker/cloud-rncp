@@ -1,0 +1,8 @@
+# Copier en terraform.tfvars (ignoré par Git) et adapter.
+github_repository = "votre-compte/biblio-bc3"
+acme_email        = "vous@example.com"
+location          = "francecentral"
+node_vm_size      = "Standard_B2als_v2"
+node_min_count    = 1
+node_max_count    = 2
+# devs_group_object_id = "00000000-0000-0000-0000-000000000000"

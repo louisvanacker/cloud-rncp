@@ -1,0 +1,16 @@
+# Certificat TLS public pour l'Ingress (chiffrement en transit navigateur -> cluster).
+# Issuer namespacé (et non ClusterIssuer) : la CI peut le gérer avec ses droits limités au namespace.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ACME_EMAIL # remplacé (replacements)
+    privateKeySecretRef:
+      name: letsencrypt-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: webapprouting.kubernetes.azure.com

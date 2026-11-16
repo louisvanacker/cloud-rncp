@@ -1,0 +1,15 @@
+# Pas de certificat Let's Encrypt en local : HTTP simple sur biblio.localtest.me (résout vers 127.0.0.1).
+# Classe "nginx" pour kind/minikube ; mettre webapprouting.kubernetes.azure.com sur le cluster de l'école.
+- op: replace
+  path: /spec/ingressClassName
+  value: nginx
+- op: remove
+  path: /spec/tls
+- op: remove
+  path: /metadata/annotations/cert-manager.io~1issuer
+- op: replace
+  path: /metadata/annotations/nginx.ingress.kubernetes.io~1force-ssl-redirect
+  value: "false"
+- op: replace
+  path: /spec/rules/0/host
+  value: biblio.localtest.me

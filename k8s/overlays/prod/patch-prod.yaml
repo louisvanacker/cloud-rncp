@@ -1,0 +1,8 @@
+# Prod : base telle quelle (2 réplicas mini, HPA jusqu'à 6) + worker doublé (voir aussi pdb-worker.yaml).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: worker
+spec:
+  minReplicas: 2
+  maxReplicas: 4

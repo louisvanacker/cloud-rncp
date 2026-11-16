@@ -1,0 +1,5 @@
+# L'initContainer de migration se connecte aussi à la base : il a besoin de la CA.
+- op: add
+  path: /spec/template/spec/initContainers/0/volumeMounts
+  value:
+    - { name: pg-ca, mountPath: /etc/pg-ca, readOnly: true }

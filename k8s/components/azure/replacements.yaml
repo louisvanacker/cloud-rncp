@@ -1,0 +1,48 @@
+# Injection des valeurs propres à chaque environnement Azure (fichier azure-settings.env de l'overlay)
+# dans les manifests. Appliqué par le composant azure (overlays dev et prod).
+- source: { kind: ConfigMap, name: azure-settings, fieldPath: data.TENANT_ID }
+  targets:
+    - select: { kind: SecretProviderClass }
+      fieldPaths: [spec.parameters.tenantId]
+- source: { kind: ConfigMap, name: azure-settings, fieldPath: data.KEYVAULT_NAME }
+  targets:
+    - select: { kind: SecretProviderClass }
+      fieldPaths: [spec.parameters.keyvaultName]
+- source: { kind: ConfigMap, name: azure-settings, fieldPath: data.APP_CLIENT_ID }
+  targets:
+    - select: { kind: SecretProviderClass, name: biblio-kv-app }
+      fieldPaths: [spec.parameters.clientID]
+    - select: { kind: ServiceAccount, name: backend }
+      fieldPaths: ["metadata.annotations.[azure.workload.identity/client-id]"]
+    - select: { kind: ServiceAccount, name: worker }
+      fieldPaths: ["metadata.annotations.[azure.workload.identity/client-id]"]
+- source: { kind: ConfigMap, name: azure-settings, fieldPath: data.DATA_CLIENT_ID }
+  targets:
+    - select: { kind: SecretProviderClass, name: biblio-kv-data }
+      fieldPaths: [spec.parameters.clientID]
+    - select: { kind: ServiceAccount, name: data }
+      fieldPaths: ["metadata.annotations.[azure.workload.identity/client-id]"]
+- source: { kind: ConfigMap, name: azure-settings, fieldPath: data.STORAGE_ACCOUNT_URL }
+  targets:
+    - select: { kind: ConfigMap, name: biblio-config }
+      fieldPaths: [data.AZURE_STORAGE_ACCOUNT_URL]
+- source: { kind: ConfigMap, name: azure-settings, fieldPath: data.HOST }
+  targets:
+    - select: { kind: Ingress, name: biblio }
+      fieldPaths: [spec.rules.0.host, spec.tls.0.hosts.0]
+    - select: { kind: ConfigMap, name: biblio-config }
+      fieldPaths: [data.CORS_ORIGINS, data.APP_URL]
+      options: { delimiter: "//", index: 1 } # conserve le préfixe https://
+- source: { kind: ConfigMap, name: azure-settings, fieldPath: data.ACME_EMAIL }
+  targets:
+    - select: { kind: Issuer, name: letsencrypt }
+      fieldPaths: [spec.acme.email]
+# Conteneurs Blob séparés par environnement (ISO 27001 A.8.31)
+- source: { kind: ConfigMap, name: azure-settings, fieldPath: data.ATTACHMENTS_CONTAINER }
+  targets:
+    - select: { kind: ConfigMap, name: biblio-config }
+      fieldPaths: [data.STORAGE_ATTACHMENTS_BUCKET]
+- source: { kind: ConfigMap, name: azure-settings, fieldPath: data.BACKUPS_CONTAINER }
+  targets:
+    - select: { kind: ConfigMap, name: biblio-config }
+      fieldPaths: [data.STORAGE_BACKUPS_BUCKET]

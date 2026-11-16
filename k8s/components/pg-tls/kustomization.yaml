@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Chiffrement en transit API/worker -> PostgreSQL (ISO 27001 A.8.24).
+# cert-manager crée une petite CA interne propre au namespace et un certificat serveur
+# pour "postgres". PostgreSQL n'accepte plus que des connexions TLS (hostssl).
+# Prérequis : cert-manager installé (Terraform, platform.tf).
+resources:
+  - certificates.yaml
+configMapGenerator:
+  - name: postgres-hba
+    files: [pg_hba.conf]
+patches:
+  - path: patch-configmap.yaml
+  - target: { kind: StatefulSet, name: postgres }
+    path: patch-postgres.yaml
+  - target: { kind: Deployment, name: "backend|worker" }
+    path: patch-clients.yaml
+  - target: { kind: Deployment, name: backend }
+    path: patch-clients-init.yaml
+  - target: { kind: CronJob, name: postgres-backup }
+    path: patch-backup.yaml

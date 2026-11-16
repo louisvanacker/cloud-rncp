@@ -1,0 +1,133 @@
+# Stack locale complète : front + back + worker + PostgreSQL + Redis (file de messages)
+# + MinIO (stockage objet S3) + Mailpit (SMTP de test).
+# Lancement :  cp .env.example .env  (puis changer les valeurs)  ->  docker compose up --build
+# Observabilité locale (optionnel) : docker compose --profile obs up --build
+name: biblio
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: info
+  DB_HOST: postgres
+  DB_NAME: biblio
+  DB_USER: biblio
+  DB_PASSWORD: ${DB_PASSWORD:?définir DB_PASSWORD dans .env}
+  REDIS_URL: redis://redis:6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?définir REDIS_PASSWORD dans .env}
+  STORAGE_DRIVER: s3
+  S3_ENDPOINT: http://minio:9000
+  S3_ACCESS_KEY: ${MINIO_ROOT_USER:?définir MINIO_ROOT_USER}
+  S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?définir MINIO_ROOT_PASSWORD}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: biblio
+      POSTGRES_USER: biblio
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U biblio -d biblio"]
+      interval: 5s
+      retries: 10
+    networks: [data]
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep PONG"]
+      interval: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes: [redisdata:/data]
+    networks: [data]
+
+  # Stockage objet S3. MinIO ne publie plus d'images officielles depuis fin 2025 (minio/minio et
+  # minio/mc supprimés de Docker Hub) : on utilise l'image gratuite maintenue par Chainguard,
+  # construite depuis les sources. Remplaçable via MINIO_IMAGE dans .env si besoin.
+  # Les buckets sont créés par l'API au démarrage (plus besoin de minio/mc).
+  minio:
+    image: ${MINIO_IMAGE:-cgr.dev/chainguard/minio:latest}
+    command: ["server", "/data", "--console-address", ":9001"]
+    user: "0:0" # local uniquement : le volume Docker est créé en root ; sur Kubernetes, fsGroup s'en charge
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports: ["9001:9001"] # navigateur d'objets MinIO
+    volumes: [miniodata:/data]
+    networks: [data]
+
+  mailpit:
+    image: axllent/mailpit:v1.24
+    ports: ["8025:8025"] # boîte mail de test : http://localhost:8025
+    networks: [data]
+
+  backend:
+    build: ./backend
+    image: biblio-backend:local
+    command: ["sh", "-c", "node src/migrate.js && node src/server.js"]
+    environment:
+      <<: *app-env
+      JWT_SECRET: ${JWT_SECRET:?définir JWT_SECRET}
+      CORS_ORIGINS: http://localhost:8080
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_started } # l'API réessaie tant que MinIO n'est pas prêt
+    ports: ["3000:3000"]
+    networks: [front, data]
+
+  worker:
+    build: ./worker
+    image: biblio-worker:local
+    environment:
+      <<: *app-env
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      APP_URL: http://localhost:8080
+    depends_on:
+      backend: { condition: service_healthy } # attend que les migrations soient passées
+    networks: [data]
+
+  frontend:
+    build: ./frontend
+    image: biblio-frontend:local
+    environment:
+      BACKEND_URL: http://backend:3000
+    depends_on: [backend]
+    ports: ["8080:8080"]
+    networks: [front]
+
+  # ---------- Profil "obs" : Prometheus + Grafana en local ----------
+  prometheus:
+    profiles: [obs]
+    image: prom/prometheus:v3.4.0
+    volumes:
+      - ./observability/local/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+    networks: [front, data]
+
+  grafana:
+    profiles: [obs]
+    image: grafana/grafana:12.0.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./observability/local/grafana-provisioning:/etc/grafana/provisioning:ro
+      - ./k8s/components/monitoring/dashboards:/var/lib/grafana/dashboards:ro # même dashboard que sur AKS
+    ports: ["3001:3000"]
+    networks: [front]
+
+# Deux réseaux : le front ne peut pas joindre directement la base (segmentation)
+networks:
+  front: {}
+  data: {}
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  miniodata: {}

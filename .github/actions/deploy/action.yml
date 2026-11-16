@@ -1,0 +1,72 @@
+# Action composite réutilisée par deploy-dev et deploy-prod :
+# connexion OIDC -> kubeconfig Entra ID -> kustomize (images figées au SHA) -> apply
+# -> attente du rolling update -> test de fumée -> rollback automatique si échec.
+name: deploy-biblio
+description: Déploie un overlay Kustomize sur AKS avec rollback automatique
+inputs:
+  overlay: { required: true }
+  namespace: { required: true }
+  tag: { required: true }
+  acr-login-server: { required: true }
+  client-id: { required: true }
+  tenant-id: { required: true }
+  subscription-id: { required: true }
+  resource-group: { required: true }
+  aks-name: { required: true }
+runs:
+  using: composite
+  steps:
+    - uses: azure/login@v2
+      with:
+        client-id: ${{ inputs.client-id }}
+        tenant-id: ${{ inputs.tenant-id }}
+        subscription-id: ${{ inputs.subscription-id }}
+    - uses: azure/setup-kubectl@v4
+    - uses: azure/use-kubelogin@v1
+    - name: Kubeconfig (authentification Entra ID, droits limités au namespace)
+      shell: bash
+      run: |
+        az aks get-credentials -g "${{ inputs.resource-group }}" -n "${{ inputs.aks-name }}" --overwrite-existing
+        kubelogin convert-kubeconfig -l azurecli
+    - name: Kustomize - images figées sur le commit
+      shell: bash
+      run: |
+        curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.6.0/kustomize_v5.6.0_linux_amd64.tar.gz" | tar xz -C /usr/local/bin
+        cd "k8s/overlays/${{ inputs.overlay }}"
+        for app in backend worker frontend; do
+          kustomize edit set image "biblio-$app=${{ inputs.acr-login-server }}/biblio-$app:${{ inputs.tag }}"
+        done
+        kustomize build . > /tmp/rendered.yaml
+        echo "Ressources à déployer : $(grep -c '^kind:' /tmp/rendered.yaml)"
+    - name: Apply + attente du rolling update
+      id: apply
+      shell: bash
+      run: |
+        kubectl apply -n "${{ inputs.namespace }}" -f /tmp/rendered.yaml
+        for d in backend worker frontend; do
+          kubectl rollout status -n "${{ inputs.namespace }}" "deploy/$d" --timeout=300s
+        done
+    - name: Test de fumée
+      id: smoke
+      shell: bash
+      run: |
+        HOST="$(grep '^HOST=' k8s/overlays/${{ inputs.overlay }}/azure-settings.env | cut -d= -f2)"
+        for i in $(seq 1 10); do
+          front=$(curl -s -o /dev/null -w '%{http_code}' "https://$HOST/" || true)
+          # POST vide sur /api/auth/login : 400 attendu = API joignable ET validation active
+          # (429 accepté aussi : limitation anti brute force déjà atteinte depuis l'IP du runner)
+          api=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "https://$HOST/api/auth/login" || true)
+          echo "essai $i : front=$front api=$api"
+          if [ "$front" = "200" ] && { [ "$api" = "400" ] || [ "$api" = "429" ]; }; then exit 0; fi
+          sleep 10
+        done
+        exit 1
+    - name: Rollback automatique
+      if: failure() && (steps.apply.outcome == 'failure' || steps.smoke.outcome == 'failure')
+      shell: bash
+      run: |
+        echo "::error::Déploiement en échec : retour à la version précédente"
+        for d in backend worker frontend; do
+          kubectl rollout undo -n "${{ inputs.namespace }}" "deploy/$d" || true
+        done
+        kubectl rollout status -n "${{ inputs.namespace }}" deploy/backend --timeout=180s || true

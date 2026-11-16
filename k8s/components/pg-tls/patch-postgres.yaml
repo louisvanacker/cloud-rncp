@@ -1,0 +1,32 @@
+- op: add
+  path: /spec/template/spec/containers/0/args
+  value:
+    - -c
+    - ssl=on
+    - -c
+    - ssl_cert_file=/etc/pg-tls/tls.crt
+    - -c
+    - ssl_key_file=/etc/pg-tls/tls.key
+    - -c
+    - ssl_min_protocol_version=TLSv1.2
+    - -c
+    - hba_file=/etc/pg-hba/pg_hba.conf
+    - -c
+    - log_connections=on
+# Clé privée : propriétaire root, groupe postgres (fsGroup 70), mode 0640 -> accepté par PostgreSQL
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: tls
+    secret: { secretName: postgres-tls, defaultMode: 416 } # = 0640 en octal
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: hba
+    configMap: { name: postgres-hba }
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value: { name: tls, mountPath: /etc/pg-tls, readOnly: true }
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value: { name: hba, mountPath: /etc/pg-hba, readOnly: true }

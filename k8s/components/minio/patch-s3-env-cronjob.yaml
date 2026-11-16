@@ -1,0 +1,10 @@
+- op: add
+  path: /spec/jobTemplate/spec/template/spec/containers/0/env/-
+  value:
+    name: S3_ACCESS_KEY
+    valueFrom: { secretKeyRef: { name: biblio-secrets, key: S3_ACCESS_KEY } }
+- op: add
+  path: /spec/jobTemplate/spec/template/spec/containers/0/env/-
+  value:
+    name: S3_SECRET_KEY
+    valueFrom: { secretKeyRef: { name: biblio-secrets, key: S3_SECRET_KEY } }

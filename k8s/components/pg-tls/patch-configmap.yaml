@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: biblio-config
+data:
+  DB_SSL: require
+  DB_SSL_CA_FILE: /etc/pg-ca/ca.crt

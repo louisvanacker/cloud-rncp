@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Environnement de production sur AKS (namespace biblio-prod).
+# Déployé par la CI sur tag vX.Y.Z, après approbation manuelle (environnement GitHub "production").
+# Le namespace (labels Pod Security, ResourceQuota, LimitRange) est créé par Terraform :
+# l'identité de la CI n'a des droits QUE dans ce namespace, elle ne peut pas le créer.
+namespace: biblio-prod
+resources:
+  - ../../base
+  - pdb-worker.yaml
+components:
+  - ../../components/azure
+  - ../../components/pg-tls
+  - ../../components/monitoring
+# Valeurs non secrètes générées par Terraform :  terraform output -raw azure_settings_prod > azure-settings.env
+configMapGenerator:
+  - name: azure-settings
+    envs: [azure-settings.env]
+    options:
+      disableNameSuffixHash: true
+      annotations:
+        config.kubernetes.io/local-config: "true" # sert aux replacements, n'est pas déployé
+images:
+  - { name: biblio-backend, newName: REGISTRY/biblio-backend, newTag: latest }
+  - { name: biblio-worker, newName: REGISTRY/biblio-worker, newTag: latest }
+  - { name: biblio-frontend, newName: REGISTRY/biblio-frontend, newTag: latest }
+patches:
+  - path: patch-prod.yaml

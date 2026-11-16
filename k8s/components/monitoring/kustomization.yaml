@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Observabilité (nécessite kube-prometheus-stack, installé par Terraform) :
+#  - ServiceMonitors : Prometheus scrape /metrics du backend et du worker
+#  - PrometheusRule  : SLI/SLO (recording rules) + alertes
+#  - Dashboard Grafana chargé automatiquement par le sidecar (label grafana_dashboard=1)
+resources:
+  - servicemonitors.yaml
+  - prometheusrule.yaml
+configMapGenerator:
+  - name: biblio-grafana-dashboard
+    files: [dashboards/biblio-overview.json]
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"

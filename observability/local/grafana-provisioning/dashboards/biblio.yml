@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: biblio
+    folder: Biblio
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

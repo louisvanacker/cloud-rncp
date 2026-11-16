@@ -1,0 +1,36 @@
+# RBAC humain (ISO 27001 A.5.15 / A.8.2) :
+#  - biblio-viewer : lecture seule (pods, logs, events...) pour l'équipe dev / astreinte
+#  - les déploiements sont faits par la CI, via son identité Azure limitée au namespace
+#    (rôle Azure "AKS RBAC Writer" scopé, voir infra/terraform/identity.tf).
+# Le groupe "biblio-devs" correspond à un groupe Entra ID (objectId) en environnement AKS.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: biblio-viewer
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, services, endpoints, events, configmaps, persistentvolumeclaims]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  # Volontairement absent : secrets (aucune lecture des secrets pour les humains)
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: biblio-viewer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: biblio-viewer
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: biblio-devs

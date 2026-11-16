@@ -1,0 +1,47 @@
+# Sauvegarde quotidienne de PostgreSQL vers le stockage objet (bucket "backups").
+# Test manuel : kubectl create job --from=cronjob/postgres-backup backup-test
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+spec:
+  schedule: "0 2 * * *"
+  timeZone: Europe/Paris
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels: { app: backup }
+        spec:
+          serviceAccountName: worker # même droits stockage que le worker
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: backup
+              image: biblio-worker
+              command: ["node", "src/backup.js"]
+              envFrom:
+                - configMapRef: { name: biblio-config }
+              env:
+                - name: DB_PASSWORD
+                  valueFrom: { secretKeyRef: { name: biblio-secrets, key: DB_PASSWORD } }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ALL] }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 500m, memory: 256Mi }
+              volumeMounts:
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - { name: tmp, emptyDir: {} }

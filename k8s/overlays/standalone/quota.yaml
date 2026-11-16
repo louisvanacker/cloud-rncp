@@ -1,0 +1,26 @@
+# Garde-fous FinOps par namespace : plafond de consommation + valeurs par défaut.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: biblio-quota
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 3Gi
+    limits.cpu: "6"
+    limits.memory: 6Gi
+    persistentvolumeclaims: "4"
+    requests.storage: 20Gi
+    pods: "30"
+    services.loadbalancers: "0" # on passe par l'Ingress partagé : pas d'IP publique facturée en plus
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: biblio-defaults
+spec:
+  limits:
+    - type: Container
+      defaultRequest: { cpu: 25m, memory: 64Mi }
+      default: { cpu: 250m, memory: 256Mi }
+      max: { cpu: "1", memory: 1Gi }

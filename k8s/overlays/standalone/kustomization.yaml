@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Environnement "standalone" : n'importe quel cluster sans Azure (kind, minikube, Docker Desktop,
+# ou le namespace fourni par l'école sur un cluster partagé).
+#  - stockage objet : MinIO dans le cluster
+#  - secrets : générés depuis des fichiers .env NON commités (scripts/gen-standalone-secrets.*)
+#  - pas de TLS interne PostgreSQL ni de ServiceMonitor (pas de cert-manager / Prometheus requis)
+#
+# Cluster partagé de l'école : remplacer "biblio" par VOTRE namespace ci-dessous et
+# retirer namespace.yaml et quota.yaml des resources (pas le droit de créer un namespace ni un quota).
+namespace: biblio
+resources:
+  - namespace.yaml
+  - quota.yaml
+  - ../../base
+components:
+  - ../../components/minio
+secretGenerator:
+  - name: biblio-secrets
+    envs: [secrets.env]
+  - name: biblio-data-secrets
+    envs: [data-secrets.env]
+images:
+  - { name: biblio-backend, newName: biblio-backend, newTag: local }
+  - { name: biblio-worker, newName: biblio-worker, newTag: local }
+  - { name: biblio-frontend, newName: biblio-frontend, newTag: local }
+patches:
+  - path: patch-small.yaml
+  - target: { kind: Ingress, name: biblio }
+    path: patch-ingress.yaml
+  - target: { kind: ConfigMap, name: biblio-config }
+    patch: |-
+      - { op: replace, path: /data/CORS_ORIGINS, value: "http://biblio.localtest.me" }
+      - { op: replace, path: /data/APP_URL, value: "http://biblio.localtest.me" }

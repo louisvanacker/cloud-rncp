@@ -1,0 +1,27 @@
+isbn,titre,auteur,categorie,annee,exemplaires
+9780000000001,Le Petit Prince,Antoine de Saint-Exupéry,Roman,1943,3
+9780000000002,L'Étranger,Albert Camus,Roman,1942,2
+9780000000003,Les Misérables,Victor Hugo,Roman,1862,2
+9780000000004,Madame Bovary,Gustave Flaubert,Roman,1857,1
+9780000000005,Germinal,Émile Zola,Roman,1885,2
+9780000000006,Le Comte de Monte-Cristo,Alexandre Dumas,Roman,1844,2
+9780000000007,Vingt mille lieues sous les mers,Jules Verne,Aventure,1870,2
+9780000000008,1984,George Orwell,Science-fiction,1949,3
+9780000000009,Fahrenheit 451,Ray Bradbury,Science-fiction,1953,1
+9780000000010,Dune,Frank Herbert,Science-fiction,1965,1
+9780000000011,Fondation,Isaac Asimov,Science-fiction,1951,2
+9780000000012,Le Meilleur des mondes,Aldous Huxley,Science-fiction,1932,1
+9780000000013,Le Seigneur des anneaux,J.R.R. Tolkien,Fantasy,1954,2
+9780000000014,Le Hobbit,J.R.R. Tolkien,Fantasy,1937,2
+9780000000015,Harry Potter à l'école des sorciers,J.K. Rowling,Jeunesse,1997,4
+9780000000016,"Le Lion, la Sorcière blanche et l'Armoire magique",C.S. Lewis,Jeunesse,1950,1
+9780000000017,Sapiens,Yuval Noah Harari,Essai,2011,2
+9780000000018,Le Deuxième Sexe,Simone de Beauvoir,Essai,1949,1
+9780000000019,Clean Code,Robert C. Martin,Informatique,2008,2
+9780000000020,The Pragmatic Programmer,"Andrew Hunt, David Thomas",Informatique,1999,1
+9780000000021,Kubernetes Up & Running,"Brendan Burns, Joe Beda, Kelsey Hightower",Informatique,2019,2
+9780000000022,Site Reliability Engineering,Betsy Beyer et al.,Informatique,2016,1
+9780000000023,Astérix le Gaulois,"René Goscinny, Albert Uderzo",Bande dessinée,1961,3
+9780000000024,Tintin au Tibet,Hergé,Bande dessinée,1960,2
+,Livre sans auteur,,Roman,2020,1
+12AB,ISBN invalide,Quelqu'un,Roman,2020,1
