@@ -23,6 +23,8 @@ runs:
         subscription-id: ${{ inputs.subscription-id }}
     - uses: azure/setup-kubectl@v4
     - uses: azure/use-kubelogin@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }} # requis pour trouver la dernière version de kubelogin
     - name: Kubeconfig (authentification Entra ID, droits limités au namespace)
       shell: bash
       run: |
