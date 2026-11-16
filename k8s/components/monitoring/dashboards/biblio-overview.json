@@ -62,7 +62,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "1 - (sum(increase(http_requests_total{app=\"biblio-backend\",status=~\"5..\",namespace=~\"$namespace\"}[30d])) / clamp_min(sum(increase(http_requests_total{app=\"biblio-backend\",namespace=~\"$namespace\"}[30d])), 1))",
+          "expr": "1 - ((sum(increase(http_requests_total{app=\"biblio-backend\",status=~\"5..\",namespace=~\"$namespace\"}[30d])) or vector(0)) / clamp_min(sum(increase(http_requests_total{app=\"biblio-backend\",namespace=~\"$namespace\"}[30d])), 1))",
           "legendFormat": ""
         }
       ],
@@ -109,7 +109,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "1 - ((sum(increase(http_requests_total{app=\"biblio-backend\",status=~\"5..\",namespace=~\"$namespace\"}[30d])) / clamp_min(sum(increase(http_requests_total{app=\"biblio-backend\",namespace=~\"$namespace\"}[30d])), 1)) / 0.005)",
+          "expr": "1 - (((sum(increase(http_requests_total{app=\"biblio-backend\",status=~\"5..\",namespace=~\"$namespace\"}[30d])) or vector(0)) / clamp_min(sum(increase(http_requests_total{app=\"biblio-backend\",namespace=~\"$namespace\"}[30d])), 1)) / 0.005)",
           "legendFormat": ""
         }
       ],
@@ -273,7 +273,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(biblio:api_error_ratio:rate5m{namespace=~\"$namespace\"})",
+          "expr": "sum(biblio:api_error_ratio:rate5m{namespace=~\"$namespace\"}) or vector(0)",
           "legendFormat": "erreurs 5xx"
         }
       ],
