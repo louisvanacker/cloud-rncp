@@ -121,7 +121,7 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - run: az acr login --name "${{ vars.ACR_NAME }}"
       - name: Build (image chargée localement pour être scannée AVANT le push)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.app }}
           load: true
