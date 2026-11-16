@@ -156,3 +156,19 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: monitoring }
       ports: [{ port: 1025 }]
   egress: []
+---
+# Certificats Let's Encrypt (défi HTTP-01) : le pod temporaire "cm-acme-http-solver" créé par
+# cert-manager doit être joignable par le contrôleur d'Ingress, sinon le certificat reste "pending".
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-acme-solver
+spec:
+  podSelector:
+    matchLabels: { acme.cert-manager.io/http01-solver: "true" }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: app-routing-system }
+      ports: [{ port: 8089 }]
