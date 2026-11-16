@@ -8,6 +8,8 @@ RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --no-audit --no-fund
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
+# Correctifs de sécurité Alpine appliqués au build (Trivy bloque les CVE CRITICAL corrigeables)
+RUN apk upgrade --no-cache
 WORKDIR /app
 # Pas de shell de compilation, pas de dépendances de dev, utilisateur non-root (uid 1000)
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules

@@ -8,7 +8,10 @@ COPY . .
 RUN npm run build
 
 # Étape 2 : fichiers statiques servis par Nginx non-root (~20 Mo au lieu de ~400 Mo)
-FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.29-alpine AS runtime
+# Correctifs de sécurité Alpine appliqués au build (Trivy bloque les CVE CRITICAL corrigeables)
+USER root
+RUN apk upgrade --no-cache
 ENV BACKEND_URL=http://backend:3000
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html

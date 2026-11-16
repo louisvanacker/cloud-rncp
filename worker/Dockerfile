@@ -7,7 +7,8 @@ RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --no-audit --no-fund
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 # Client PostgreSQL pour le CronJob de sauvegarde (même version majeure que le serveur)
-RUN apk add --no-cache postgresql17-client
+# + correctifs de sécurité Alpine (Trivy bloque les CVE CRITICAL corrigeables)
+RUN apk upgrade --no-cache && apk add --no-cache postgresql17-client
 WORKDIR /app
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node package.json ./
