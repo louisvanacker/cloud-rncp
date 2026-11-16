@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1.7
 # Image multi-stage : les dépendances de dev et le cache npm ne vont pas en production.
 
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --no-audit --no-fund
 
-FROM node:22-alpine AS runtime
+FROM node:26-alpine AS runtime
 ENV NODE_ENV=production
 # Correctifs de sécurité Alpine appliqués au build (Trivy bloque les CVE CRITICAL corrigeables)
 RUN apk upgrade --no-cache
