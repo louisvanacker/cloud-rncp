@@ -13,6 +13,7 @@ const { bookRoutes, publicCoverRoute } = require('./routes/books');
 const loanRoutes = require('./routes/loans');
 const reservationRoutes = require('./routes/reservations');
 const { importRoutes, exportRoutes } = require('./routes/jobs');
+const pkg = require('../package.json');
 
 // Les dépendances (db, queue, storage) sont injectées : l'app est testable sans infrastructure.
 function createApp(deps) {
@@ -55,6 +56,8 @@ function createApp(deps) {
   const api = express.Router();
   api.use('/auth', authRoutes(deps));
   api.use('/books', publicCoverRoute(deps)); // seule route publique : images de couverture
+  // Version de l'API (publique) : verifier quelle version repond, ex. pendant un canary
+  api.get('/version', (_req, res) => res.json({ version: pkg.version }));
   api.use(requireAuth(config, logger));
   api.use('/users', userRoutes(deps));
   api.use('/books', bookRoutes(deps));
