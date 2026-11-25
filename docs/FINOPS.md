@@ -1,59 +1,55 @@
-# FinOps — coût chiffré et optimisations mesurées
+# FinOps — coût estimé, coût réel et optimisations mesurées
 
-> ⚠️ Les prix ci-dessous sont des **ordres de grandeur** (paiement à l'usage, Linux, région France Central) donnés pour structurer le calcul. **Recalcule-les le jour J** avec l'[Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/) et mesure le réel dans **Cost Management** (filtre par tag `project = biblio-bc3`). Remplace les valeurs dans les tableaux par tes chiffres.
+Chiffres relevés pendant le TP (novembre 2026) : région **Belgium Central**, 2 nœuds **Standard_D2as_v4**,
+paiement à l'usage. Estimation avec l'[Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/),
+coût réel dans **Cost Management** (abonnement Azure for Students).
 
 ## 1. Méthode
 
-1. **Estimer** avant déploiement (calculatrice Azure) — tableau 2.
-2. **Mesurer** après quelques jours : Cost Management → *Analyse des coûts* → groupé par *ressource*, filtré sur le groupe `rg-biblio` (et le groupe de nœuds `MC_rg-biblio_...`).
-3. **Optimiser** et **mesurer à nouveau** pour chiffrer le gain — tableau 3.
+1. **Estimer** avec la calculatrice Azure, en reprenant exactement les ressources créées par Terraform.
+2. **Mesurer** dans Cost Management : *Analyse du coût* → coût par ressource, puis coût quotidien.
+3. **Comparer** avant / après chaque optimisation.
 
-Toutes les ressources portent les tags `project`, `owner`, `cost-center`, `managed-by` (Terraform) : c'est ce qui permet d'attribuer les coûts.
+Toutes les ressources portent les tags `project`, `owner`, `cost-center`, `managed-by` : c'est ce qui permet
+d'attribuer chaque coût au projet.
 
-## 2. Estimation de référence (« sans optimisation »)
+## 2. Estimation
 
-Hypothèse naïve : 2 nœuds 24 h/24, réglages par défaut d'AKS.
-
-| Poste | Hypothèse | Ordre de grandeur / mois |
+| Poste | Hypothèse | $ / mois |
 |---|---|---|
-| Nœuds AKS | 2 × Standard_B2als_v2, 730 h | ~ 2 × 30 € = **60 €** |
-| Disques OS des nœuds | 2 × 128 Go Premium SSD (défaut AKS) | ~ 2 × 18 € = **36 €** |
-| Load Balancer Standard + IP publique | 1 règle d'Ingress | ~ **20 €** |
-| Plan de contrôle AKS | tier Standard (SLA) | ~ **70 €** |
-| PVC (PostgreSQL ×2, Prometheus, Loki) | ~35 Go Standard SSD | ~ **4 €** |
-| ACR | Basic | ~ **5 €** |
-| Blob, Key Vault, egress | volumes de projet d'école | < **1 €** |
-| Logs Container Insights | si activé, ~2 Go/jour | ~ **150 €** |
-| **Total de référence** | | **~ 345 € / mois** |
+| Plan de contrôle AKS | Standard, option « No SLA » (gratuit) | 0 |
+| Nœuds AKS | 2 × D2as_v4, 730 h | 167,90 |
+| Disques OS des nœuds | 2 × E6 Standard SSD 64 Go | 9,60 |
+| Container Registry | Basic | 5,00 |
+| Adresse IP publique, stockage Blob (5 Go LRS) | | ~3,85 |
+| **Total, cluster allumé 24 h/24** | | **186,35** |
+| **Total avec arrêt planifié** (nœuds 240 h/mois) | | **~74** |
 
-## 3. Optimisations réellement appliquées et effet mesurable
+Les nœuds représentent environ 90 % du coût : c'est sur eux que les optimisations ont le plus d'effet.
 
-| # | Optimisation | Où | Effet attendu | Comment le mesurer |
-|---|---|---|---|---|
-| 1 | **Plan de contrôle AKS « Free »** (pas de SLA, suffisant hors vraie prod) | `aks.tf` `sku_tier = "Free"` | −70 € | ligne « Uptime SLA » absente de la facture |
-| 2 | **Arrêt planifié du cluster** soir et week-end (55 h / 168 h) | `.github/workflows/finops-schedule.yml` | nœuds : −67 % (~−40 €) | historique des runs + coût journalier semaine vs week-end dans Cost Management |
-| 3 | **Cluster autoscaler 1 → 2 nœuds** : un seul nœud au repos | `aks.tf` `min_count = 1` | ~−30 € quand la charge est faible | `kubectl get nodes` au repos ; métrique « node count » |
-| 4 | **Disque OS 64 Go au lieu de 128 Go** | `aks.tf` `os_disk_size_gb` | ~−50 % sur les disques des nœuds | taille des disques dans `MC_...` |
-| 5 | **Pas de Container Insights** : Prometheus + Loki dans le cluster, logs limités aux namespaces applicatifs, rétention 7 j | `platform.tf` | −150 € potentiels | aucune ligne Log Analytics |
-| 6 | **Rightsizing** : requests basses mesurées (50m / 96 Mi pour l'API), HPA qui ajoute des pods seulement sous charge | `k8s/base/*.yaml` | plus de pods par nœud → moins de nœuds | dashboard Grafana CPU/mémoire vs requests ; `kubectl top pods` |
-| 7 | **dev et prod sur le même cluster** (namespaces + quotas) | `platform.tf` | évite un 2e cluster (~−100 €) | 1 seul cluster dans la facture |
-| 8 | **Cycle de vie Blob** : sauvegardes en tier froid à 7 j, supprimées à 30 j ; exports PDF supprimés à 7 j et CSV d'import à 30 j (worker + politique Azure) ; couvertures peu consultées en tier froid | `storage.tf`, `worker/src/jobs/cleanup.js` | volume stocké plafonné | taille du compte de stockage dans le temps |
-| 9 | **Images légères** multi-stage (front ~20 Mo, API ~60 Mo) | `Dockerfile`s | moins de stockage ACR, démarrage plus rapide des pods | taille affichée dans le résumé CI |
-| 10 | **ResourceQuota / LimitRange** par namespace, `services.loadbalancers = 0` | `platform.tf` | aucun service ne peut créer une IP publique facturée par erreur | `kubectl describe quota -n biblio-dev` |
+## 3. Coût réel mesuré
 
-**Résultat cible** : ~345 € → **~50–60 € / mois** (ordre de grandeur), soit environ −80 %.
+- Premiers jours : **1,18 €** au total, dont **0,88 €** pour les nœuds (75 %), le reste pour les IP publiques,
+  l'ACR et les disques ; Key Vault et stockage < 0,01 €.
+- Coût quotidien : **~1,10 €** un jour où le cluster tourne, **quelques centimes** un jour où il est arrêté.
 
-## 4. Mesures à faire pour le rapport
+## 4. Optimisations appliquées et effet
 
-- [ ] Capture de l'estimation « avant » dans la calculatrice Azure (export Excel possible)
-- [ ] Capture Cost Management après ≥ 3 jours : coût par ressource
-- [ ] Graphique coût journalier montrant la baisse les jours d'arrêt planifié
-- [ ] `kubectl top nodes` / `kubectl top pods -A` au repos (justifie les requests)
-- [ ] Nombre de nœuds au repos vs pendant le test de charge k6 (autoscaler)
-- [ ] Taille des images (résumé du job CI)
+| # | Optimisation | Où | Effet |
+|---|---|---|---|
+| 1 | **Arrêt du cluster hors utilisation** (`az aks stop`, workflow `finops-schedule.yml`) | GitHub Actions | 186 $ → ~74 $/mois estimés (−60 %) ; réel : ~1,10 €/jour allumé contre quelques centimes éteint |
+| 2 | **Rightsizing des requests + HPA** : au repos l'API consomme 3m CPU pour 50m réservés | `k8s/base/*.yaml` | les 15 conteneurs (dev + prod) réservent ~0,6 vCPU / 1,3 Go ; avec des réservations « par défaut » (0,5 vCPU / 512 Mo par conteneur) il faudrait 7,5 vCPU, soit 4 nœuds au lieu de 2 (~+168 $/mois, et au-delà du quota de 6 vCPU) |
+| 3 | Plan de contrôle AKS sans SLA | `aks.tf` | 0 $ au lieu de ~70 $/mois |
+| 4 | Prometheus + Loki dans le cluster plutôt que Container Insights | `platform.tf` | aucune facturation des journaux au Go |
+| 5 | Disques OS 64 Go Standard SSD, stockage LRS, cycle de vie Blob (froid à 7 j, suppression à 30 j) | `aks.tf`, `storage.tf` | disques et stockage à quelques centimes par jour |
+| 6 | dev et prod sur un même cluster (namespaces, quotas, `services.loadbalancers = 0`) | `platform.tf` | évite un second cluster et toute IP publique créée par erreur |
+| 7 | Images légères multi-stage (21 / 79 / 84 Mo) | `Dockerfile`s | moins de stockage ACR, démarrage des pods plus rapide |
 
-## 5. Garde-fou budgétaire (à créer dans le portail, 2 minutes)
+## 5. Garde-fou budgétaire
 
-Cost Management → *Budgets* → budget mensuel de 50 € sur `rg-biblio` avec alertes à 50 %, 80 % et 100 % par e-mail. (Sur un compte d'essai, c'est la meilleure assurance contre une mauvaise surprise.)
+Budget **budget-CloudRNCP** : 25 €/mois sur l'abonnement, alertes e-mail à 50, 80 et 100 %.
 
-Et **toujours** en fin de séance : `az aks stop -g rg-biblio -n <aks>` (ou laisser le workflow planifié le faire).
+Piste d'amélioration : au repos, l'autoscaler garde 2 nœuds car la supervision (Prometheus, Grafana, Loki)
+réserve beaucoup de mémoire ; réduire ses réservations permettrait de revenir à 1 nœud au repos (~−50 % sur les nœuds).
+
+En fin de séance : `az aks stop -g rg-biblio -n aks-biblio-gzx4h`. Après la notation : `terraform destroy`.

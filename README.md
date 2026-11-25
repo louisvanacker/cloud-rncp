@@ -2,7 +2,7 @@
 
 Application web cloud-native de **gestion de bibliothèque** : catalogue, emprunts, réservations avec file d'attente, rappels et relances automatiques. Front React, API Node stateless, PostgreSQL, stockage objet, worker asynchrone, et toute la chaîne d'exploitation : conteneurs, Kubernetes, CI/CD, Terraform, observabilité, sécurité ISO 27001 et FinOps.
 
-👉 **Pas à pas complet : [GUIDE.md](GUIDE.md)** (aussi en PDF : `Guide-TP-BC3-Biblio.pdf`)
+👉 **Documentation** : [architecture](docs/ARCHITECTURE.md) · [SLO et alertes](docs/SLO.md) · [sécurité ISO 27001](docs/SECURITY-ISO27001.md) · [FinOps](docs/FINOPS.md). Le déroulé complet et les captures sont dans le compte rendu remis avec le dépôt.
 
 ## Démarrage rapide (local)
 

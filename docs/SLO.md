@@ -34,4 +34,4 @@ Alertes complémentaires (non SLO) : échecs du worker, file engorgée, sauvegar
 
 1. Dashboard Grafana « Biblio — Vue d'ensemble » : tuiles disponibilité 30 j, budget restant, p95.
 2. Test de charge k6 (`tests/load/k6-load.js`) : ses seuils reprennent les SLO (`http_req_failed < 0,5 %`, `p95 < 300 ms`).
-3. Provoquer une alerte en dev : supprimer l'HPA puis mettre le backend à 0 réplica (`kubectl delete hpa backend -n biblio-dev` puis `kubectl scale deploy/backend -n biblio-dev --replicas=0`) → `BiblioApiDown` en ~3 min → e-mail dans Mailpit. Retour à la normale : `kubectl scale ... --replicas=1` puis relancer le dernier run CI pour recréer l'HPA (voir GUIDE, étape 7).
+3. Provoquer une alerte en dev : supprimer l'HPA puis mettre le backend à 0 réplica (`kubectl delete hpa backend -n biblio-dev` puis `kubectl scale deploy/backend -n biblio-dev --replicas=0`) → `BiblioApiDown` en ~3 min → e-mail dans Mailpit. Retour à la normale : `kubectl scale ... --replicas=1` puis relancer le dernier run CI pour recréer l'HPA (voir compte rendu, partie 6).

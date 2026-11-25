@@ -5,9 +5,9 @@ variable "project" {
 }
 
 variable "location" {
-  description = "Région Azure (vérifier la disponibilité de la taille de VM et vos quotas)"
+  description = "Région Azure. belgiumcentral : région autorisée par la stratégie de l'abonnement étudiant (France Central interdite)"
   type        = string
-  default     = "francecentral"
+  default     = "belgiumcentral"
 }
 
 variable "environments" {
@@ -23,9 +23,9 @@ variable "kubernetes_version" {
 }
 
 variable "node_vm_size" {
-  description = "Taille des nœuds. B2als_v2 = 2 vCPU / 4 Go, burstable (FinOps : bon marché pour un trafic faible)"
+  description = "Taille des nœuds. D2as_v4 = 2 vCPU / 8 Go : la série B est refusée par l'abonnement étudiant, D2as_v4 a du quota (famille DASv4)"
   type        = string
-  default     = "Standard_B2als_v2"
+  default     = "Standard_D2as_v4"
 }
 
 variable "node_min_count" {

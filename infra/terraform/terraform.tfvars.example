@@ -1,8 +1,10 @@
 # Copier en terraform.tfvars (ignoré par Git) et adapter.
-github_repository = "votre-compte/biblio-bc3"
+# Format exigé par Azure pour les dépôts GitHub récents : "compte@ID/depot@ID"
+# (l'ID figure dans l'erreur AADSTS700213 ou via l'API GitHub). Ancien format : "compte/depot".
+github_repository = "votre-compte@00000000/cloud-rncp@0000000000"
 acme_email        = "vous@example.com"
-location          = "francecentral"
-node_vm_size      = "Standard_B2als_v2"
+location          = "belgiumcentral"
+node_vm_size      = "Standard_D2as_v4"
 node_min_count    = 1
 node_max_count    = 2
 # devs_group_object_id = "00000000-0000-0000-0000-000000000000"
