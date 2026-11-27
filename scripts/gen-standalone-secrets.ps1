@@ -1,4 +1,4 @@
-# Version PowerShell de gen-standalone-secrets.sh
+# Genere les secrets du deploiement local (kind)
 # Usage : .\scripts\gen-standalone-secrets.ps1 [-AdminEmail admin@biblio.local]
 param([string]$AdminEmail = "admin@biblio.local")
 $ErrorActionPreference = "Stop"

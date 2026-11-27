@@ -67,7 +67,7 @@ resource "azurerm_kubernetes_cluster" "this" {
   image_cleaner_interval_hours = 48
 
   # Pas de Container Insights (Log Analytics facturé au Go ingéré) : on utilise
-  # Prometheus + Loki dans le cluster (choix FinOps, cf. docs/FINOPS.md).
+  # Prometheus + Loki dans le cluster (choix FinOps, cf. docs/DOCUMENTATION.md).
 
   tags = local.tags
 

@@ -1,4 +1,4 @@
-# SLO (voir docs/SLO.md) :
+# SLO (voir docs/DOCUMENTATION.md) :
 #  - Disponibilité API : 99,5 % des requêtes sans erreur 5xx sur 30 jours (budget d'erreur = 0,5 %)
 #  - Latence API      : 95 % des requêtes en moins de 300 ms
 apiVersion: monitoring.coreos.com/v1

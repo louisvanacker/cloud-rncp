@@ -102,26 +102,6 @@ services:
     ports: ["8080:8080"]
     networks: [front]
 
-  # ---------- Profil "obs" : Prometheus + Grafana en local ----------
-  prometheus:
-    profiles: [obs]
-    image: prom/prometheus:v3.4.0
-    volumes:
-      - ./observability/local/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    ports: ["9090:9090"]
-    networks: [front, data]
-
-  grafana:
-    profiles: [obs]
-    image: grafana/grafana:12.0.0
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-    volumes:
-      - ./observability/local/grafana-provisioning:/etc/grafana/provisioning:ro
-      - ./k8s/components/monitoring/dashboards:/var/lib/grafana/dashboards:ro # même dashboard que sur AKS
-    ports: ["3001:3000"]
-    networks: [front]
-
 # Deux réseaux : le front ne peut pas joindre directement la base (segmentation)
 networks:
   front: {}

@@ -1,9 +1,6 @@
 # Déploiement CANARY du backend (optionnel, "idéalement" dans le sujet) :
 # une nouvelle version reçoit X % du trafic /api grâce aux annotations canary de l'Ingress NGINX
-# (contrôleur App Routing d'AKS). Piloté par scripts/canary.sh :
-#   ./scripts/canary.sh start <tag-image> 10   -> 10 % du trafic sur la nouvelle version
-#   ./scripts/canary.sh promote <tag-image>    -> la version devient "stable" (rolling update)
-#   ./scripts/canary.sh abort                  -> suppression du canary
+# (contrôleur App Routing d'AKS). Piloté par scripts/canary.ps1 (start, test, abort).
 # Les valeurs __IMAGE__, __HOST__ et __WEIGHT__ sont remplacées par le script.
 apiVersion: apps/v1
 kind: Deployment

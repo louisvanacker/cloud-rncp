@@ -1,4 +1,4 @@
-# Deploiement canary du backend (version PowerShell de canary.sh, voir k8s/canary/backend-canary.yaml).
+# Deploiement canary du backend (voir k8s/canary/backend-canary.yaml).
 # Usage :
 #   .\scripts\canary.ps1 start  -Image <acr>.azurecr.io/biblio-backend:<sha> -Weight 20
 #   .\scripts\canary.ps1 test   (repartition observee sur /api/version)
