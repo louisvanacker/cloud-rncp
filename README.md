@@ -1,4 +1,4 @@
-# Biblio, du code à la supervision (BC3)
+# Biblio projet Cloud Vanacker Louis - M2 IA - Ecole Hexagone
 
 Biblio est une application web de gestion de bibliothèque. Elle permet de consulter un catalogue, d'emprunter et de réserver des livres, et envoie des rappels automatiques. Le projet couvre toute la chaîne d'exploitation demandée par le sujet BC3, avec les conteneurs, Kubernetes, la CI/CD, Terraform, la supervision, la sécurité et le suivi des coûts.
 
